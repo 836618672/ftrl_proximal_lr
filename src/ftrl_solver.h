@@ -21,6 +21,7 @@
 #ifndef SRC_FTRL_SOLVER_H
 #define SRC_FTRL_SOLVER_H
 
+#include <unordered_map>
 #include <algorithm>
 #include <cstdlib>
 #include <fstream>
@@ -55,8 +56,8 @@ public:
 
 	virtual bool Initialize(const char* path);
 
-	virtual T Update(const std::vector<std::pair<size_t, T> >& x, T y);
-	virtual T Predict(const std::vector<std::pair<size_t, T> >& x);
+	virtual T Update(const std::unordered_map<string,T> & x, T y);
+	virtual T Predict(const std::unordered_map<string,T> >& x);
 
 	virtual bool SaveModelAll(const char* path);
 	virtual bool SaveModel(const char* path);
@@ -74,7 +75,7 @@ protected:
 	enum {kPrecision = 8};
 
 protected:
-	T GetWeight(size_t idx);
+	T GetWeight(string feature);
 
 protected:
 	T alpha_;
@@ -84,8 +85,8 @@ protected:
 	size_t feat_num_;
 	T dropout_;
 
-	T * n_;
-	T * z_;
+	std::unordered_map<string,T> * n_;
+	std::unordered_map<string,T> * z_;
 
 	bool init_;
 
@@ -104,11 +105,11 @@ uniform_dist_(0.0, std::nextafter(1.0, std::numeric_limits<T>::max())) {}
 template<typename T>
 FtrlSolver<T>::~FtrlSolver() {
 	if (n_) {
-		delete [] n_;
+		delete  n_;
 	}
 
 	if (z_) {
-		delete [] z_;
+		delete  z_;
 	}
 }
 
@@ -134,10 +135,8 @@ bool FtrlSolver<T>::Initialize(
 	feat_num_ = n;
 	dropout_ = dropout;
 
-	n_ = new T[feat_num_];
-	z_ = new T[feat_num_];
-	set_float_zero(n_, n);
-	set_float_zero(z_, n);
+	n_ = new std::unordered_map<string,T>;
+	z_ = new std::unordered_map<string,T>;
 	init_ = true;
 	return init_;
 }
@@ -156,11 +155,13 @@ bool FtrlSolver<T>::Initialize(const char* path) {
 		return false;
 	}
 
-	n_ = new T[feat_num_];
-	z_ = new T[feat_num_];
-
+	n_ = new std::unordered_map<string,T>;
+	z_ = new std::unordered_map<string,T>;
+	string tmp_feature;
+	T tmp_num;
 	for (size_t i = 0; i < feat_num_; ++i) {
-		fin >> n_[i];
+		fin >> tmp_feature>>tmp_num;
+		n_[tmp_feature]=tmp_num;
 		if (!fin || fin.eof()) {
 			fin.close();
 			return false;
@@ -168,7 +169,8 @@ bool FtrlSolver<T>::Initialize(const char* path) {
 	}
 
 	for (size_t i = 0; i < feat_num_; ++i) {
-		fin >> z_[i];
+		fin >>tmp_feature>>tmp_num;
+		z_[tmp_feature]=tmp_num;
 		if (!fin || fin.eof()) {
 			fin.close();
 			return false;
@@ -181,27 +183,27 @@ bool FtrlSolver<T>::Initialize(const char* path) {
 }
 
 template<typename T>
-T FtrlSolver<T>::GetWeight(size_t idx) {
+T FtrlSolver<T>::GetWeight(string feature) {
 	T sign = 1.;
 	T val = 0.;
-	if (z_[idx] < 0) {
+	if (z_[feature] < 0) {
 		sign = -1.;
 	}
 
-	if (util_less_equal(sign * z_[idx], l1_)) {
+	if (util_less_equal(sign * z_[string], l1_)) {
 		val = 0.;
 	} else {
-		val = (sign * l1_ - z_[idx]) / ((beta_ + sqrt(n_[idx])) / alpha_ + l2_);
+		val = (sign * l1_ - z_[string]) / ((beta_ + sqrt(n_[string])) / alpha_ + l2_);
 	}
 
 	return val;
 }
 
 template<typename T>
-T FtrlSolver<T>::Update(const std::vector<std::pair<size_t, T> >& x, T y) {
+T FtrlSolver<T>::Update(const std::unordered_map <string,T> & x, T y) {
 	if (!init_) return 0;
 
-	std::vector<std::pair<size_t, T> > weights;
+	std::vector<std::pair<string, T> > weights;
 	std::vector<T> gradients;
 	T wTx = 0.;
 
@@ -212,11 +214,11 @@ T FtrlSolver<T>::Update(const std::vector<std::pair<size_t, T> >& x, T y) {
 				continue;
 			}
 		}
-		size_t idx = item.first;
-		if (idx >= feat_num_) continue;
-
-		T val = GetWeight(idx);
-		weights.push_back(std::make_pair(idx, val));
+		string feature = item.first;
+		if (z_.find(feature)==z_.end()||n_.find(feature)==n_.end())
+			continue;
+		T val = GetWeight(feature);
+		weights[feature]=val;
 		gradients.push_back(item.second);
 		wTx += val * item.second;
 	}
@@ -229,10 +231,10 @@ T FtrlSolver<T>::Update(const std::vector<std::pair<size_t, T> >& x, T y) {
 		gradients.begin(),
 		std::bind1st(std::multiplies<T>(), grad));
 
-	for (size_t k = 0; k < weights.size(); ++k) {
-		size_t i = weights[k].first;
-		T w_i = weights[k].second;
-		T grad_i = gradients[k];
+	for (auto & item:weights) {
+		string i = item.first;
+		T w_i = item.second;
+		T grad_i = gradients[i];
 		T sigma = (sqrt(n_[i] + grad_i * grad_i) - sqrt(n_[i])) / alpha_;
 		z_[i] += grad_i - sigma * w_i;
 		n_[i] += grad_i * grad_i;
@@ -247,7 +249,7 @@ T FtrlSolver<T>::Predict(const std::vector<std::pair<size_t, T> >& x) {
 
 	T wTx = 0.;
 	for (auto& item : x) {
-		size_t idx = item.first;
+		string idx = item.first;
 		T val = GetWeight(idx);
 		wTx += val * item.second;
 	}
@@ -269,9 +271,9 @@ bool FtrlSolver<T>::SaveModel(const char* path) {
 	}
 
 	fout << std::fixed << std::setprecision(kPrecision);
-	for (size_t i = 0; i < feat_num_; ++i) {
-		T w = GetWeight(i);
-		fout << w << "\n";
+	for (auto& item :z_) {
+		T w = GetWeight(item.first);
+		fout <<item.first<<"\t"<< w << "\n";
 	}
 
 	fout.close();
@@ -292,14 +294,14 @@ bool FtrlSolver<T>::SaveModelDetail(const char* path) {
 
 	fout << std::fixed << std::setprecision(kPrecision);
 	fout << alpha_ << "\t" << beta_ << "\t" << l1_ << "\t"
-		<< l2_ << "\t" << feat_num_ << "\t" << dropout_ << "\n";
+		<< l2_ << "\t" << z_.size() << "\t" << dropout_ << "\n";
 
-	for (size_t i = 0; i < feat_num_; ++i) {
-		fout << n_[i] << "\n";
+	for (auto& item :n_) {
+		fout <<item.first<<"\t"<<item.second<< "\n";
 	}
 
-	for (size_t i = 0; i < feat_num_; ++i) {
-		fout << z_[i] << "\n";
+	for (auto& item :z_) {
+		fout <<item.first<<"\t"<<item.second<< "\n";
 	}
 
 	fout.close();
@@ -324,7 +326,7 @@ public:
 
 	T Predict(const std::vector<std::pair<size_t, T> >& x);
 private:
-	std::vector<T> model_;
+	std::unordered_map<string,T> model_;
 	bool init_;
 };
 
@@ -341,10 +343,10 @@ bool LRModel<T>::Initialize(const char* path) {
 	if (!fin.is_open()) {
 		return false;
 	}
-
+	string str;
 	T w;
-	while (fin >> w) {
-		model_.push_back(w);
+	while (fin >> str >> w) {
+		model_[str]=w;
 	}
 
 	fin.close();
@@ -359,7 +361,7 @@ T LRModel<T>::Predict(const std::vector<std::pair<size_t, T> >& x) {
 
 	T wTx = 0.;
 	for (auto& item : x) {
-		if (item.first >= model_.size()) continue;
+		if (model_.find(item.first) == model_.end()) continue;
 		wTx += model_[item.first] * item.second;
 	}
 	T pred = sigmoid(wTx);

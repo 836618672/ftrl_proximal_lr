@@ -38,8 +38,8 @@ public:
 	virtual bool OpenFile(const char* path) = 0;
 	virtual bool CloseFile() = 0;
 
-	virtual bool ReadSample(T& y, std::vector<std::pair<size_t, T> >& x) = 0;
-	virtual bool ReadSampleMultiThread(T& y, std::vector<std::pair<size_t, T> >& x) = 0;
+	virtual bool ReadSample(T& y, std::unordered_map<std::string,T>& x) = 0;
+	virtual bool ReadSampleMultiThread(T& y, std::unordered_map<std::string,T>& x) = 0;
 
 public:
 	static bool FileExists(const char* path);
@@ -56,13 +56,13 @@ public:
 	virtual bool CloseFile();
 
 	// Read a new line and Parse to <x, y>, thread-safe but not optimized for multi-threading
-	virtual bool ReadSample(T& y, std::vector<std::pair<size_t, T> >& x);
+	virtual bool ReadSample(T& y, std::unordered_map<std::string,T>& x);
 
 	// Read a new line and Parse to <x, y>, with multi-threading capability
-	virtual bool ReadSampleMultiThread(T& y, std::vector<std::pair<size_t, T> >& x);
+	virtual bool ReadSampleMultiThread(T& y, std::unordered_map<std::string,T>& x);
 
 	bool ParseSample(char* buf, T& y,
-		std::vector<std::pair<size_t, T> >& x);
+		std::unordered_map<std::string,T>& x);
 
 	// Read a new line using external buffer
 	char* ReadLine(char *buf, size_t& buf_size);
@@ -205,7 +205,7 @@ double string_to_real<double> (const char *nptr, char **endptr) {
 
 template<typename T>
 bool FileParser<T>::ParseSample(char* buf, T& y,
-		std::vector<std::pair<size_t, T> >& x) {
+		std::unordered_map<std::string,T>& x) {
 	if (buf == NULL) return false;
 
 	char *endptr, *ptr;
@@ -216,19 +216,25 @@ bool FileParser<T>::ParseSample(char* buf, T& y,
 	if (endptr == p || *endptr != '\0') return false;
 	if (y < 0) y = 0;
 
+
+	*p = strtok_r(buf, " \t\n", &ptr);
+	if (p == NULL) return false;
+
+	int tmp = string_to_real<T> (p, &endptr);
+	if (endptr == p || *endptr != '\0') return false;
+
 	x.clear();
-	// add bias term
-	x.push_back(std::make_pair((size_t)0, (T)1));
 	while (1) {
-		char *idx = strtok_r(NULL, ":", &ptr);
-		char *val = strtok_r(NULL, " \t", &ptr);
+		char *idx = strtok_r(NULL, " \t", &ptr);
+		char *val = strtok_r(NULL, ",", &ptr);
 		if (val == NULL) break;
+		std::string feature=idx;
 
 		bool error_found = false;
-		size_t k = (size_t) strtol(idx, &endptr, 10);
-		if (endptr == idx || *endptr != '\0' || static_cast<int>(k) < 0) {
-			error_found = true;
-		}
+//		size_t k = (size_t) strtol(idx, &endptr, 10);
+//		if (endptr == idx || *endptr != '\0' || static_cast<int>(k) < 0) {
+//			error_found = true;
+//		}
 
 		T v = string_to_real<T> (val, &endptr);
 		if (endptr == val || (*endptr != '\0' && !isspace(*endptr))) {
@@ -236,7 +242,7 @@ bool FileParser<T>::ParseSample(char* buf, T& y,
 		}
 
 		if (!error_found) {
-			x.push_back(std::make_pair(k, v));
+			x[feature]=val;
 		}
 	}
 
@@ -245,7 +251,7 @@ bool FileParser<T>::ParseSample(char* buf, T& y,
 
 template<typename T>
 bool FileParser<T>::ReadSample(T& y,
-		std::vector<std::pair<size_t, T> >& x) {
+		std::unordered_map<std::string,T> & x) {
 	std::lock_guard<SpinLock> lock(lock_);
 	char *buf = ReadLineImpl(buf_, buf_size_);
 	if (!buf) return false;
@@ -256,7 +262,7 @@ bool FileParser<T>::ReadSample(T& y,
 
 template<typename T>
 bool FileParser<T>::ReadSampleMultiThread(T& y,
-		std::vector<std::pair<size_t, T> >& x) {
+		std::unordered_map<std::string,T> & x) {
 	char *buf = ReadLine();
 	if (!buf) return false;
 

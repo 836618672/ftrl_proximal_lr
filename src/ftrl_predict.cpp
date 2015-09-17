@@ -103,7 +103,7 @@ int main(int argc, char* argv[]) {
 	model.Initialize(model_file.c_str());
 
 	double y = 0.;
-	std::vector<std::pair<size_t, double> > x;
+	std::unordered_map<string,double > x;
 	FILE* wfp = fopen(output_file.c_str(), "w");
 	size_t cnt = 0, correct = 0;
 	double loss = 0.;

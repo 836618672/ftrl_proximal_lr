@@ -261,13 +261,14 @@ bool FtrlWorker<T>::Reset(FtrlParamServer<T>* param_server) {
 
 template<typename T>
 T FtrlWorker<T>::Update(
-		const std::vector<std::pair<size_t, T> >& x,
+		const std::unordered_map<string,T> x,
 		T y,
 		FtrlParamServer<T>* param_server) {
 	if (!FtrlSolver<T>::init_) return 0;
 
-	std::vector<std::pair<size_t, T> > weights;
-	std::vector<T> gradients;
+	std::unordered_map<string,T> weights;
+	std::unordered_map<string,T> gradients;
+//	std::vector<T> gradients;
 	T wTx = 0.;
 
 	for (auto& item : x) {
@@ -277,20 +278,24 @@ T FtrlWorker<T>::Update(
 				continue;
 			}
 		}
-		size_t idx = item.first;
-		if (idx >= FtrlSolver<T>::feat_num_) continue;
+		std::string feature = item.first;
+		if ((*z_).find(feature)==(*z_.end())) continue;
 
 		T val = FtrlSolver<T>::GetWeight(idx);
-		weights.push_back(std::make_pair(idx, val));
-		gradients.push_back(item.second);
+//		weights.push_back(std::make_pair(idx, val));
+		weights[feature]=val;
+		gradients[feature]=item.second;
 		wTx += val * item.second;
 	}
 
 	T pred = sigmoid(wTx);
 	T grad = pred - y;
-	std::transform(gradients.begin(), gradients.end(), gradients.begin(),
-			std::bind1st(std::multiplies<T>(), grad));
-
+	//std::transform(gradients.begin(), gradients.end(), gradients.begin(),
+//			std::bind1st(std::multiplies<T>(), grad));
+	for (auto &tmp:gradients)
+	{
+		tmp.second=tmp.second*grad;
+	}
 	for (size_t k = 0; k < weights.size(); ++k) {
 		size_t i = weights[k].first;
 		size_t g = i / kParamGroupSize;

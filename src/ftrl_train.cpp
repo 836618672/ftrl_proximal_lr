@@ -21,6 +21,8 @@
 #include <getopt.h>
 #include <unistd.h>
 #include <iostream>
+#include <unordered_map>
+#include <string>
 #include <locale>
 #include "src/fast_ftrl_solver.h"
 #include "src/ftrl_train.h"

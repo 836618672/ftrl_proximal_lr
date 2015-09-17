@@ -20,7 +20,7 @@
 
 #ifndef SRC_FTRL_TRAIN_H
 #define SRC_FTRL_TRAIN_H
-
+#include <unordered_map>
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
@@ -264,7 +264,7 @@ bool FtrlTrainer<T>::TrainImpl(
 		static_cast<float>(solver_.dropout()),
 		epoch_);
 
-	auto predict_func = [&] (const std::vector<std::pair<size_t, T> >& x) {
+	auto predict_func = [&] (const std::unordered_map<std::string,T>& x) {
 		return solver_.Predict(x);
 	};
 
@@ -273,7 +273,7 @@ bool FtrlTrainer<T>::TrainImpl(
 	for (size_t iter = 0; iter < epoch_; ++iter) {
 		FileParser<T> file_parser;
 		file_parser.OpenFile(train_file);
-		std::vector<std::pair<size_t, T> > x;
+		std::unordered_map<std::string,T> x;
 		T y;
 
 		size_t cur_cnt = 0, last_cnt = 0;
@@ -398,7 +398,7 @@ bool LockFreeFtrlTrainer<T>::TrainImpl(
 		static_cast<float>(solver_.dropout()),
 		epoch_);
 
-	auto predict_func = [&] (const std::vector<std::pair<size_t, T> >& x) {
+	auto predict_func = [&] (const std::unordered_map<std::string,T>& x) {
 		return solver_.Predict(x);
 	};
 
@@ -412,7 +412,7 @@ bool LockFreeFtrlTrainer<T>::TrainImpl(
 
 		SpinLock lock;
 		auto worker_func = [&] (size_t i) {
-			std::vector<std::pair<size_t, T> > x;
+			std::unordered_map<std::string,T> x;
 			T y;
 			size_t local_count = 0;
 			T local_loss = 0;
@@ -532,13 +532,13 @@ size_t read_problem_info(
 	auto read_problem_worker = [&](size_t i) {
 		size_t local_max_feat = 0;
 		size_t local_count = 0;
-		std::vector<std::pair<size_t, T> > local_x;
+		std::unordered_map<std::string,T> local_x;
 		T local_y;
 		while (1) {
 			if (!parser.ReadSampleMultiThread(local_y, local_x)) break;
-			for (auto& item : local_x) {
-				if (item.first + 1 > local_max_feat) local_max_feat = item.first + 1;
-			}
+			//for (auto& item : local_x) {
+				//if (item.first + 1 > local_max_feat) local_max_feat = item.first + 1;
+			//}
 			++local_count;
 		} {
 			std::lock_guard<SpinLock> lockguard(lock);
@@ -633,7 +633,7 @@ bool FastFtrlTrainer<T>::TrainImpl(
 		solvers[i].Initialize(&param_server_, push_step_, fetch_step_);
 	}
 
-	auto predict_func = [&] (const std::vector<std::pair<size_t, T> >& x) {
+	auto predict_func = [&] (const std::unordered_map<std::string,T>& x) {
 		return param_server_.Predict(x);
 	};
 
@@ -646,7 +646,7 @@ bool FastFtrlTrainer<T>::TrainImpl(
 
 		SpinLock lock;
 		auto worker_func = [&] (size_t i) {
-			std::vector<std::pair<size_t, T> > x;
+			std::unordered_map<std::string,T> x;
 			T y;
 			size_t local_count = 0;
 			T local_loss = 0;
@@ -681,7 +681,7 @@ bool FastFtrlTrainer<T>::TrainImpl(
 
 		if (iter == 0 && util_greater(burn_in_, (T)0)) {
 			size_t burn_in_cnt = (size_t) (burn_in_ * line_cnt);
-			std::vector<std::pair<size_t, T> > x;
+			std::unordered_map<std::string,T> x;
 			T y;
 			T local_loss = 0;
 			for (size_t i = 0; i < burn_in_cnt; ++i) {
@@ -749,7 +749,7 @@ T evaluate_file(const char* path, const Func& func_predict, size_t num_threads) 
 	auto predict_worker = [&](size_t i) {
 		size_t local_count = 0;
 		T local_loss = 0;
-		std::vector<std::pair<size_t, T> > local_x;
+		std::unordered_map<std::string,T> local_x;
 		T local_y;
 		while (1) {
 			bool res = parser.ReadSampleMultiThread(local_y, local_x);

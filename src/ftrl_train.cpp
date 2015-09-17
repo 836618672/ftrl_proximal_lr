@@ -21,8 +21,9 @@
 #include <getopt.h>
 #include <unistd.h>
 #include <iostream>
+#include <unordered_map>
+#include <string>
 #include <locale>
-#include "src/fast_ftrl_solver.h"
 #include "src/ftrl_train.h"
 #include "src/util.h"
 
@@ -63,6 +64,7 @@ bool train(const char* input_file, const char* test_file, const char* model_file
 			trainer.Train(start_from_model,
 				model_file, input_file, test_file);
 		} else {
+			puts("train");
 			trainer.Train(alpha, beta, l1, l2, dropout,
 				model_file, input_file, test_file);
 		}
@@ -77,18 +79,19 @@ bool train(const char* input_file, const char* test_file, const char* model_file
 			trainer.Train(alpha, beta, l1, l2, dropout,
 				model_file, input_file, test_file);
 		}
-	} else {
-		FastFtrlTrainer<T> trainer;
-		trainer.Initialize(epoch, num_threads, cache, burn_in_phase, push_step, fetch_step);
-
-		if (start_from_model) {
-			trainer.Train(start_from_model,
-				model_file, input_file, test_file);
-		} else {
-			trainer.Train(alpha, beta, l1, l2, dropout,
-				model_file, input_file, test_file);
-		}
 	}
+//	else {
+//		FastFtrlTrainer<T> trainer;
+//		trainer.Initialize(epoch, num_threads, cache, burn_in_phase, push_step, fetch_step);
+//
+//		if (start_from_model) {
+//			trainer.Train(start_from_model,
+//				model_file, input_file, test_file);
+//		} else {
+//			trainer.Train(alpha, beta, l1, l2, dropout,
+//				model_file, input_file, test_file);
+//		}
+//	}
 
 	return true;
 }
@@ -128,8 +131,8 @@ int main(int argc, char* argv[]) {
 
 	size_t epoch = 1;
 	bool cache = true;
-	size_t push_step = kPushStep;
-	size_t fetch_step = kFetchStep;
+	size_t push_step = 10;
+	size_t fetch_step = 10;
 	size_t num_threads = 1;
 	bool lock_free = false;
 

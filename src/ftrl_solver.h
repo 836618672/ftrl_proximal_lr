@@ -32,6 +32,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <iostream>
 #include "src/util.h"
 
 #define DEFAULT_ALPHA 0.15
@@ -56,8 +57,8 @@ public:
 
 	virtual bool Initialize(const char* path);
 
-	virtual T Update(const std::unordered_map<string,T> & x, T y);
-	virtual T Predict(const std::unordered_map<string,T> >& x);
+	virtual T Update(const std::unordered_map<std::string,T> & x, T y);
+	virtual T Predict(const std::unordered_map<std::string,T> & x);
 
 	virtual bool SaveModelAll(const char* path);
 	virtual bool SaveModel(const char* path);
@@ -75,7 +76,7 @@ protected:
 	enum {kPrecision = 8};
 
 protected:
-	T GetWeight(string feature);
+	T GetWeight(std::string feature);
 
 protected:
 	T alpha_;
@@ -85,8 +86,8 @@ protected:
 	size_t feat_num_;
 	T dropout_;
 
-	std::unordered_map<string,T> * n_;
-	std::unordered_map<string,T> * z_;
+	std::unordered_map<std::string,T> * n_;
+	std::unordered_map<std::string,T> * z_;
 
 	bool init_;
 
@@ -135,8 +136,8 @@ bool FtrlSolver<T>::Initialize(
 	feat_num_ = n;
 	dropout_ = dropout;
 
-	n_ = new std::unordered_map<string,T>;
-	z_ = new std::unordered_map<string,T>;
+	n_ = new std::unordered_map<std::string,T>;
+	z_ = new std::unordered_map<std::string,T>;
 	init_ = true;
 	return init_;
 }
@@ -155,13 +156,13 @@ bool FtrlSolver<T>::Initialize(const char* path) {
 		return false;
 	}
 
-	n_ = new std::unordered_map<string,T>;
-	z_ = new std::unordered_map<string,T>;
-	string tmp_feature;
+	n_ = new std::unordered_map<std::string,T>;
+	z_ = new std::unordered_map<std::string,T>;
+	std::string tmp_feature;
 	T tmp_num;
 	for (size_t i = 0; i < feat_num_; ++i) {
 		fin >> tmp_feature>>tmp_num;
-		n_[tmp_feature]=tmp_num;
+		(*n_)[tmp_feature]=tmp_num;
 		if (!fin || fin.eof()) {
 			fin.close();
 			return false;
@@ -170,7 +171,7 @@ bool FtrlSolver<T>::Initialize(const char* path) {
 
 	for (size_t i = 0; i < feat_num_; ++i) {
 		fin >>tmp_feature>>tmp_num;
-		z_[tmp_feature]=tmp_num;
+		(*z_)[tmp_feature]=tmp_num;
 		if (!fin || fin.eof()) {
 			fin.close();
 			return false;
@@ -183,28 +184,29 @@ bool FtrlSolver<T>::Initialize(const char* path) {
 }
 
 template<typename T>
-T FtrlSolver<T>::GetWeight(string feature) {
+T FtrlSolver<T>::GetWeight(std::string feature) {
 	T sign = 1.;
 	T val = 0.;
-	if (z_[feature] < 0) {
+	if ((*z_)[feature] < 0) {
 		sign = -1.;
 	}
 
-	if (util_less_equal(sign * z_[string], l1_)) {
+	if (util_less_equal(sign * (*z_)[feature], l1_)) {
 		val = 0.;
 	} else {
-		val = (sign * l1_ - z_[string]) / ((beta_ + sqrt(n_[string])) / alpha_ + l2_);
+		val = (sign * l1_ - (*z_)[feature]) / ((beta_ + sqrt((*n_)[feature])) / alpha_ + l2_);
 	}
 
 	return val;
 }
 
 template<typename T>
-T FtrlSolver<T>::Update(const std::unordered_map <string,T> & x, T y) {
+T FtrlSolver<T>::Update(const std::unordered_map <std::string,T> & x, T y) {
 	if (!init_) return 0;
 
-	std::vector<std::pair<string, T> > weights;
-	std::vector<T> gradients;
+	std::unordered_map<std::string, T>  weights;
+	std::unordered_map<std::string, T>  gradients;
+	//std::vector<T> gradients;
 	T wTx = 0.;
 
 	for (auto& item : x) {
@@ -214,42 +216,46 @@ T FtrlSolver<T>::Update(const std::unordered_map <string,T> & x, T y) {
 				continue;
 			}
 		}
-		string feature = item.first;
-		if (z_.find(feature)==z_.end()||n_.find(feature)==n_.end())
-			continue;
+		std::string feature = item.first;
+		//if ((*z_).find(feature)==(*z_).end()||(*n_).find(feature)==(*n_).end())
+		//	continue;
 		T val = GetWeight(feature);
 		weights[feature]=val;
-		gradients.push_back(item.second);
+		//gradients.push_back(item.second);
+		gradients[feature]=item.second;
 		wTx += val * item.second;
 	}
 
 	T pred = sigmoid(wTx);
 	T grad = pred - y;
-	std::transform(
-		gradients.begin(),
-		gradients.end(),
-		gradients.begin(),
-		std::bind1st(std::multiplies<T>(), grad));
-
+//	std::transform(
+//		gradients.begin(),
+//		gradients.end(),
+//		gradients.begin(),
+//		std::bind1st(std::multiplies<T>(), grad));
+	for (auto &tmp:gradients)
+	{
+		tmp.second=tmp.second*grad;
+	}
 	for (auto & item:weights) {
-		string i = item.first;
+		std::string i = item.first;
 		T w_i = item.second;
 		T grad_i = gradients[i];
-		T sigma = (sqrt(n_[i] + grad_i * grad_i) - sqrt(n_[i])) / alpha_;
-		z_[i] += grad_i - sigma * w_i;
-		n_[i] += grad_i * grad_i;
+		T sigma = (sqrt((*n_)[i] + grad_i * grad_i) - sqrt((*n_)[i])) / alpha_;
+		(*z_)[i] += grad_i - sigma * w_i;
+		(*n_)[i] += grad_i * grad_i;
 	}
 
 	return pred;
 }
 
 template<typename T>
-T FtrlSolver<T>::Predict(const std::vector<std::pair<size_t, T> >& x) {
+T FtrlSolver<T>::Predict(const std::unordered_map<std::string,T>& x) {
 	if (!init_) return 0;
 
 	T wTx = 0.;
 	for (auto& item : x) {
-		string idx = item.first;
+		std::string idx = item.first;
 		T val = GetWeight(idx);
 		wTx += val * item.second;
 	}
@@ -271,7 +277,7 @@ bool FtrlSolver<T>::SaveModel(const char* path) {
 	}
 
 	fout << std::fixed << std::setprecision(kPrecision);
-	for (auto& item :z_) {
+	for (auto& item :(*z_)) {
 		T w = GetWeight(item.first);
 		fout <<item.first<<"\t"<< w << "\n";
 	}
@@ -294,13 +300,13 @@ bool FtrlSolver<T>::SaveModelDetail(const char* path) {
 
 	fout << std::fixed << std::setprecision(kPrecision);
 	fout << alpha_ << "\t" << beta_ << "\t" << l1_ << "\t"
-		<< l2_ << "\t" << z_.size() << "\t" << dropout_ << "\n";
+		<< l2_ << "\t" << (*z_).size() << "\t" << dropout_ << "\n";
 
-	for (auto& item :n_) {
+	for (auto& item :(*n_)) {
 		fout <<item.first<<"\t"<<item.second<< "\n";
 	}
 
-	for (auto& item :z_) {
+	for (auto& item :(*z_)) {
 		fout <<item.first<<"\t"<<item.second<< "\n";
 	}
 
@@ -324,9 +330,9 @@ public:
 
 	bool Initialize(const char* path);
 
-	T Predict(const std::vector<std::pair<size_t, T> >& x);
+	T Predict(const std::unordered_map<std::string,T>& x);
 private:
-	std::unordered_map<string,T> model_;
+	std::unordered_map<std::string,T> model_;
 	bool init_;
 };
 
@@ -343,7 +349,7 @@ bool LRModel<T>::Initialize(const char* path) {
 	if (!fin.is_open()) {
 		return false;
 	}
-	string str;
+	std::string str;
 	T w;
 	while (fin >> str >> w) {
 		model_[str]=w;
@@ -356,7 +362,7 @@ bool LRModel<T>::Initialize(const char* path) {
 }
 
 template<typename T>
-T LRModel<T>::Predict(const std::vector<std::pair<size_t, T> >& x) {
+T LRModel<T>::Predict(const std::unordered_map<std::string,T>& x) {
 	if (!init_) return 0;
 
 	T wTx = 0.;

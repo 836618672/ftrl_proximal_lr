@@ -20,14 +20,13 @@
 
 #ifndef SRC_FTRL_TRAIN_H
 #define SRC_FTRL_TRAIN_H
-
+#include <unordered_map>
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
 #include <string>
 #include <utility>
 #include <vector>
-#include "src/fast_ftrl_solver.h"
 #include "src/file_parser.h"
 #include "src/ftrl_solver.h"
 #include "src/stopwatch.h"
@@ -134,56 +133,56 @@ private:
 	bool init_;
 };
 
-template<typename T>
-class FastFtrlTrainer {
-public:
-	FastFtrlTrainer();
+// template<typename T>
+// class FastFtrlTrainer {
+// public:
+	// FastFtrlTrainer();
 
-	virtual ~FastFtrlTrainer();
+	// virtual ~FastFtrlTrainer();
 
-	bool Initialize(
-		size_t epoch,
-		size_t num_threads = 0,
-		bool cache_feature_num = true,
-		T burn_in = 0,
-		size_t push_step = kPushStep,
-		size_t fetch_step = kFetchStep);
+	// bool Initialize(
+		// size_t epoch,
+		// size_t num_threads = 0,
+		// bool cache_feature_num = true,
+		// T burn_in = 0,
+		// size_t push_step = kPushStep,
+		// size_t fetch_step = kFetchStep);
 
-	bool Train(
-		T alpha,
-		T beta,
-		T l1,
-		T l2,
-		T dropout,
-		const char* model_file,
-		const char* train_file,
-		const char* test_file = NULL);
+	// bool Train(
+		// T alpha,
+		// T beta,
+		// T l1,
+		// T l2,
+		// T dropout,
+		// const char* model_file,
+		// const char* train_file,
+		// const char* test_file = NULL);
 
-	bool Train(
-		const char* last_model,
-		const char* model_file,
-		const char* train_file,
-		const char* test_file = NULL);
+	// bool Train(
+		// const char* last_model,
+		// const char* model_file,
+		// const char* train_file,
+		// const char* test_file = NULL);
 
-protected:
-	bool TrainImpl(
-		const char* model_file,
-		const char* train_file,
-		size_t line_cnt,
-		const char* test_file = NULL);
+// protected:
+	// bool TrainImpl(
+		// const char* model_file,
+		// const char* train_file,
+		// size_t line_cnt,
+		// const char* test_file = NULL);
 
-private:
-	size_t epoch_;
-	bool cache_feature_num_;
-	size_t push_step_;
-	size_t fetch_step_;
-	T burn_in_;
+// private:
+	// size_t epoch_;
+	// bool cache_feature_num_;
+	// size_t push_step_;
+	// size_t fetch_step_;
+	// T burn_in_;
 
-	FtrlParamServer<T> param_server_;
-	size_t num_threads_;
+	// FtrlParamServer<T> param_server_;
+	// size_t num_threads_;
 
-	bool init_;
-};
+	// bool init_;
+// };
 
 
 
@@ -218,7 +217,7 @@ bool FtrlTrainer<T>::Train(
 
 	size_t line_cnt = 0;
 	size_t feat_num = read_problem_info<T>(train_file, cache_feature_num_, line_cnt);
-	if (feat_num == 0) return false;
+//	if (feat_num == 0) return false;
 
 	if (!solver_.Initialize(alpha, beta, l1, l2, feat_num, dropout)) {
 		return false;
@@ -264,7 +263,7 @@ bool FtrlTrainer<T>::TrainImpl(
 		static_cast<float>(solver_.dropout()),
 		epoch_);
 
-	auto predict_func = [&] (const std::vector<std::pair<size_t, T> >& x) {
+	auto predict_func = [&] (const std::unordered_map<std::string,T>& x) {
 		return solver_.Predict(x);
 	};
 
@@ -273,12 +272,13 @@ bool FtrlTrainer<T>::TrainImpl(
 	for (size_t iter = 0; iter < epoch_; ++iter) {
 		FileParser<T> file_parser;
 		file_parser.OpenFile(train_file);
-		std::vector<std::pair<size_t, T> > x;
+		std::unordered_map<std::string,T> x;
 		T y;
 
 		size_t cur_cnt = 0, last_cnt = 0;
 		T loss = 0;
 		while (file_parser.ReadSample(y, x)) {
+			//puts("ReadSample");
 			T pred = solver_.Update(x, y);
 			loss += calc_loss(y, pred);
 			++cur_cnt;
@@ -371,7 +371,7 @@ bool LockFreeFtrlTrainer<T>::Train(
 
 	size_t line_cnt = 0;
 	size_t feat_num = read_problem_info<T>(train_file, cache_feature_num_, line_cnt, num_threads_);
-	if (feat_num == 0) return false;
+	//if (feat_num == 0) return false;
 
 	if (!solver_.Initialize(last_model)) {
 		return false;
@@ -398,7 +398,7 @@ bool LockFreeFtrlTrainer<T>::TrainImpl(
 		static_cast<float>(solver_.dropout()),
 		epoch_);
 
-	auto predict_func = [&] (const std::vector<std::pair<size_t, T> >& x) {
+	auto predict_func = [&] (const std::unordered_map<std::string,T>& x) {
 		return solver_.Predict(x);
 	};
 
@@ -412,7 +412,7 @@ bool LockFreeFtrlTrainer<T>::TrainImpl(
 
 		SpinLock lock;
 		auto worker_func = [&] (size_t i) {
-			std::vector<std::pair<size_t, T> > x;
+			std::unordered_map<std::string,T> x;
 			T y;
 			size_t local_count = 0;
 			T local_loss = 0;
@@ -466,38 +466,38 @@ bool LockFreeFtrlTrainer<T>::TrainImpl(
 
 
 
-template<typename T>
-FastFtrlTrainer<T>::FastFtrlTrainer()
-: epoch_(0), cache_feature_num_(false), push_step_(0),
-fetch_step_(0), param_server_(), num_threads_(0), init_(false) { }
+// template<typename T>
+// FastFtrlTrainer<T>::FastFtrlTrainer()
+// : epoch_(0), cache_feature_num_(false), push_step_(0),
+// fetch_step_(0), param_server_(), num_threads_(0), init_(false) { }
 
-template<typename T>
-FastFtrlTrainer<T>::~FastFtrlTrainer() {
-}
+// template<typename T>
+// FastFtrlTrainer<T>::~FastFtrlTrainer() {
+// }
 
-template<typename T>
-bool FastFtrlTrainer<T>::Initialize(
-		size_t epoch,
-		size_t num_threads,
-		bool cache_feature_num,
-		T burn_in,
-		size_t push_step,
-		size_t fetch_step) {
-	epoch_ = epoch;
-	cache_feature_num_ = cache_feature_num;
-	push_step_ = push_step;
-	fetch_step_ = fetch_step;
-	if (num_threads == 0) {
-		num_threads_ = std::thread::hardware_concurrency();
-	} else {
-		num_threads_ = num_threads;
-	}
+// template<typename T>
+// bool FastFtrlTrainer<T>::Initialize(
+		// size_t epoch,
+		// size_t num_threads,
+		// bool cache_feature_num,
+		// T burn_in,
+		// size_t push_step,
+		// size_t fetch_step) {
+	// epoch_ = epoch;
+	// cache_feature_num_ = cache_feature_num;
+	// push_step_ = push_step;
+	// fetch_step_ = fetch_step;
+	// if (num_threads == 0) {
+		// num_threads_ = std::thread::hardware_concurrency();
+	// } else {
+		// num_threads_ = num_threads;
+	// }
 
-	burn_in_ = burn_in;
+	// burn_in_ = burn_in;
 
-	init_ = true;
-	return init_;
-}
+	// init_ = true;
+	// return init_;
+// }
 
 template<typename T>
 size_t read_problem_info(
@@ -532,13 +532,13 @@ size_t read_problem_info(
 	auto read_problem_worker = [&](size_t i) {
 		size_t local_max_feat = 0;
 		size_t local_count = 0;
-		std::vector<std::pair<size_t, T> > local_x;
+		std::unordered_map<std::string,T> local_x;
 		T local_y;
 		while (1) {
 			if (!parser.ReadSampleMultiThread(local_y, local_x)) break;
-			for (auto& item : local_x) {
-				if (item.first + 1 > local_max_feat) local_max_feat = item.first + 1;
-			}
+			//for (auto& item : local_x) {
+				//if (item.first + 1 > local_max_feat) local_max_feat = item.first + 1;
+			//}
 			++local_count;
 		} {
 			std::lock_guard<SpinLock> lockguard(lock);
@@ -568,175 +568,153 @@ size_t read_problem_info(
 	return feat_num;
 }
 
-template<typename T>
-bool FastFtrlTrainer<T>::Train(
-		T alpha,
-		T beta,
-		T l1,
-		T l2,
-		T dropout,
-		const char* model_file,
-		const char* train_file,
-		const char* test_file) {
-	if (!init_) return false;
 
-	size_t line_cnt = 0;
-	size_t feat_num = read_problem_info<T>(train_file, cache_feature_num_, line_cnt, num_threads_);
-	if (feat_num == 0) return false;
+// template<typename T>
+// bool FastFtrlTrainer<T>::Train(
+		// const char* last_model,
+		// const char* model_file,
+		// const char* train_file,
+		// const char* test_file) {
+	// if (!init_) return false;
 
-	if (!param_server_.Initialize(alpha, beta, l1, l2, feat_num, dropout)) {
-		return false;
-	}
+	// size_t line_cnt = 0;
+	// size_t feat_num = read_problem_info<T>(train_file, cache_feature_num_, line_cnt, num_threads_);
+	// if (feat_num == 0) return false;
 
-	return TrainImpl(model_file, train_file, line_cnt, test_file);
-}
+	// if (!param_server_.Initialize(last_model)) {
+		// return false;
+	// }
 
-template<typename T>
-bool FastFtrlTrainer<T>::Train(
-		const char* last_model,
-		const char* model_file,
-		const char* train_file,
-		const char* test_file) {
-	if (!init_) return false;
+	// return TrainImpl(model_file, train_file, line_cnt, test_file);
+// }
 
-	size_t line_cnt = 0;
-	size_t feat_num = read_problem_info<T>(train_file, cache_feature_num_, line_cnt, num_threads_);
-	if (feat_num == 0) return false;
+//template<typename T>
+// bool FastFtrlTrainer<T>::TrainImpl(
+		// const char* model_file,
+		// const char* train_file,
+		// size_t line_cnt,
+		// const char* test_file) {
+	// if (!init_) return false;
 
-	if (!param_server_.Initialize(last_model)) {
-		return false;
-	}
+	// fprintf(
+		// stdout,
+		// "params={alpha:%.2f, beta:%.2f, l1:%.2f, l2:%.2f, dropout:%.2f, epoch:%zu}\n",
+		// static_cast<float>(param_server_.alpha()),
+		// static_cast<float>(param_server_.beta()),
+		// static_cast<float>(param_server_.l1()),
+		// static_cast<float>(param_server_.l2()),
+		// static_cast<float>(param_server_.dropout()),
+		// epoch_);
 
-	return TrainImpl(model_file, train_file, line_cnt, test_file);
-}
+	// FtrlWorker<T>* solvers = new FtrlWorker<T>[num_threads_];
+	// for (size_t i = 0; i < num_threads_; ++i) {
+		// solvers[i].Initialize(&param_server_, push_step_, fetch_step_);
+	// }
 
-template<typename T>
-bool FastFtrlTrainer<T>::TrainImpl(
-		const char* model_file,
-		const char* train_file,
-		size_t line_cnt,
-		const char* test_file) {
-	if (!init_) return false;
+	// auto predict_func = [&] (const std::unordered_map<std::string,T>& x) {
+		// return param_server_.Predict(x);
+	// };
 
-	fprintf(
-		stdout,
-		"params={alpha:%.2f, beta:%.2f, l1:%.2f, l2:%.2f, dropout:%.2f, epoch:%zu}\n",
-		static_cast<float>(param_server_.alpha()),
-		static_cast<float>(param_server_.beta()),
-		static_cast<float>(param_server_.l1()),
-		static_cast<float>(param_server_.l2()),
-		static_cast<float>(param_server_.dropout()),
-		epoch_);
+	// StopWatch timer;
+	// for (size_t iter = 0; iter < epoch_; ++iter) {
+		// FileParser<T> file_parser;
+		// file_parser.OpenFile(train_file);
+		// size_t count = 0;
+		// T loss = 0;
 
-	FtrlWorker<T>* solvers = new FtrlWorker<T>[num_threads_];
-	for (size_t i = 0; i < num_threads_; ++i) {
-		solvers[i].Initialize(&param_server_, push_step_, fetch_step_);
-	}
+		// SpinLock lock;
+		// auto worker_func = [&] (size_t i) {
+			// std::unordered_map<std::string,T> x;
+			// T y;
+			// size_t local_count = 0;
+			// T local_loss = 0;
+			// while (1) {
+				// if (!file_parser.ReadSampleMultiThread(y, x)) {
+					// break;
+				// }
 
-	auto predict_func = [&] (const std::vector<std::pair<size_t, T> >& x) {
-		return param_server_.Predict(x);
-	};
+				// T pred = solvers[i].Update(x, y, &param_server_);
+				// local_loss += calc_loss(y, pred);
+				// ++local_count;
 
-	StopWatch timer;
-	for (size_t iter = 0; iter < epoch_; ++iter) {
-		FileParser<T> file_parser;
-		file_parser.OpenFile(train_file);
-		size_t count = 0;
-		T loss = 0;
+				// if (i == 0 && local_count % 10000 == 0) {
+					// size_t tmp_cnt = std::min(local_count * num_threads_, line_cnt);
+					// fprintf(
+						// stdout,
+						// "epoch=%zu processed=[%.2f%%] time=[%.2f] train-loss=[%.6f]\r",
+						// iter,
+						// tmp_cnt * 100 / static_cast<float>(line_cnt),
+						// timer.StopTimer(),
+						// static_cast<float>(local_loss) / local_count);
+					// fflush(stdout);
+				// }
+			// } {
+				// std::lock_guard<SpinLock> lockguard(lock);
+				// count += local_count;
+				// loss += local_loss;
+			// }
 
-		SpinLock lock;
-		auto worker_func = [&] (size_t i) {
-			std::vector<std::pair<size_t, T> > x;
-			T y;
-			size_t local_count = 0;
-			T local_loss = 0;
-			while (1) {
-				if (!file_parser.ReadSampleMultiThread(y, x)) {
-					break;
-				}
+			// solvers[i].PushParam(&param_server_);
+		// };
 
-				T pred = solvers[i].Update(x, y, &param_server_);
-				local_loss += calc_loss(y, pred);
-				++local_count;
+		// if (iter == 0 && util_greater(burn_in_, (T)0)) {
+			// size_t burn_in_cnt = (size_t) (burn_in_ * line_cnt);
+			// std::unordered_map<std::string,T> x;
+			// T y;
+			// T local_loss = 0;
+			// for (size_t i = 0; i < burn_in_cnt; ++i) {
+				// if (!file_parser.ReadSample(y, x)) {
+					// break;
+				// }
 
-				if (i == 0 && local_count % 10000 == 0) {
-					size_t tmp_cnt = std::min(local_count * num_threads_, line_cnt);
-					fprintf(
-						stdout,
-						"epoch=%zu processed=[%.2f%%] time=[%.2f] train-loss=[%.6f]\r",
-						iter,
-						tmp_cnt * 100 / static_cast<float>(line_cnt),
-						timer.StopTimer(),
-						static_cast<float>(local_loss) / local_count);
-					fflush(stdout);
-				}
-			} {
-				std::lock_guard<SpinLock> lockguard(lock);
-				count += local_count;
-				loss += local_loss;
-			}
+				// T pred = param_server_.Update(x, y);
+				// local_loss += calc_loss(y, pred);
+				// if (i % 10000 == 0) {
+					// fprintf(
+						// stdout,
+						// "burn-in processed=[%.2f%%] time=[%.2f] train-loss=[%.6f]\r",
+						// (i + 1) * 100 / static_cast<float>(line_cnt),
+						// timer.StopTimer(),
+						// static_cast<float>(local_loss) / (i + 1));
+					// fflush(stdout);
+				// }
+			// }
 
-			solvers[i].PushParam(&param_server_);
-		};
+			// fprintf(
+				// stdout,
+				// "burn-in processed=[%.2f%%] time=[%.2f] train-loss=[%.6f]\n",
+				// burn_in_cnt * 100 / static_cast<float>(line_cnt),
+				// timer.StopTimer(),
+				// static_cast<float>(local_loss) / burn_in_cnt);
 
-		if (iter == 0 && util_greater(burn_in_, (T)0)) {
-			size_t burn_in_cnt = (size_t) (burn_in_ * line_cnt);
-			std::vector<std::pair<size_t, T> > x;
-			T y;
-			T local_loss = 0;
-			for (size_t i = 0; i < burn_in_cnt; ++i) {
-				if (!file_parser.ReadSample(y, x)) {
-					break;
-				}
+			// if (util_equal(burn_in_, (T)1)) continue;
+		// }
 
-				T pred = param_server_.Update(x, y);
-				local_loss += calc_loss(y, pred);
-				if (i % 10000 == 0) {
-					fprintf(
-						stdout,
-						"burn-in processed=[%.2f%%] time=[%.2f] train-loss=[%.6f]\r",
-						(i + 1) * 100 / static_cast<float>(line_cnt),
-						timer.StopTimer(),
-						static_cast<float>(local_loss) / (i + 1));
-					fflush(stdout);
-				}
-			}
+		// for (size_t i = 0; i < num_threads_; ++i) {
+			// solvers[i].Reset(&param_server_);
+		// }
 
-			fprintf(
-				stdout,
-				"burn-in processed=[%.2f%%] time=[%.2f] train-loss=[%.6f]\n",
-				burn_in_cnt * 100 / static_cast<float>(line_cnt),
-				timer.StopTimer(),
-				static_cast<float>(local_loss) / burn_in_cnt);
+		// util_parallel_run(worker_func, num_threads_);
 
-			if (util_equal(burn_in_, (T)1)) continue;
-		}
+		// file_parser.CloseFile();
 
-		for (size_t i = 0; i < num_threads_; ++i) {
-			solvers[i].Reset(&param_server_);
-		}
+		// fprintf(
+			// stdout,
+			// "epoch=%zu processed=[%.2f%%] time=[%.2f] train-loss=[%.6f]\n",
+			// iter,
+			// count * 100 / static_cast<float>(line_cnt),
+			// timer.StopTimer(),
+			// static_cast<float>(loss) / count);
 
-		util_parallel_run(worker_func, num_threads_);
+		// if (test_file) {
+			// T eval_loss = evaluate_file<T>(test_file, predict_func, num_threads_);
+			// printf("validation-loss=[%lf]\n", static_cast<double>(eval_loss));
+		// }
+	// }
 
-		file_parser.CloseFile();
-
-		fprintf(
-			stdout,
-			"epoch=%zu processed=[%.2f%%] time=[%.2f] train-loss=[%.6f]\n",
-			iter,
-			count * 100 / static_cast<float>(line_cnt),
-			timer.StopTimer(),
-			static_cast<float>(loss) / count);
-
-		if (test_file) {
-			T eval_loss = evaluate_file<T>(test_file, predict_func, num_threads_);
-			printf("validation-loss=[%lf]\n", static_cast<double>(eval_loss));
-		}
-	}
-
-	delete [] solvers;
-	return param_server_.SaveModelAll(model_file);
-}
+	// delete [] solvers;
+	// return param_server_.SaveModelAll(model_file);
+// }
 
 template<typename T, class Func>
 T evaluate_file(const char* path, const Func& func_predict, size_t num_threads) {
@@ -749,7 +727,7 @@ T evaluate_file(const char* path, const Func& func_predict, size_t num_threads) 
 	auto predict_worker = [&](size_t i) {
 		size_t local_count = 0;
 		T local_loss = 0;
-		std::vector<std::pair<size_t, T> > local_x;
+		std::unordered_map<std::string,T> local_x;
 		T local_y;
 		while (1) {
 			bool res = parser.ReadSampleMultiThread(local_y, local_x);
